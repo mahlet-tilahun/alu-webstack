@@ -1,0 +1,49 @@
+# Global settings for HAProxy
+global
+    log /dev/log local0
+    log /dev/log local1 notice
+    chroot /var/lib/haproxy
+    stats socket /run/haproxy/admin.sock mode 660 level admin expose-fd listeners
+    stats timeout 30s
+    user haproxy
+    group haproxy
+    daemon
+
+# SSL settings (optional, if SSL is configured)
+ssl-default-bind-ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384
+ssl-default-bind-ciphersuites TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256
+ssl-default-bind-options ssl-min-ver TLSv1.2 no-tls-tickets
+
+# Default settings for all frontend and backend sections
+defaults
+    log     global
+    mode    http
+    option  httplog
+    timeout client 30s
+    timeout connect 5s
+    timeout server 30s
+
+# Frontend for HTTP traffic
+frontend http
+    bind *:80
+    mode http
+    default_backend web-server
+
+# Frontend for HTTPS traffic with SSL termination
+frontend https_front
+    bind *:443 ssl crt /etc/letsencrypt/live/www.mahlet.tech/fullchain.pem key /etc/letsencrypt/live/www.mahlet.tech/privkey.pem
+    reqadd X-Forwarded-Proto:\ https
+    acl letsencrypt-acl path_beg /.well-known/acme-challenge/
+    use_backend letsencrypt-backend if letsencrypt-acl
+    default_backend web-server
+
+# Backend for web servers
+backend web-server
+    balance roundrobin
+    server 3848-web-01 52.91.14.9:80 check
+    server 3848-web-02 54.196.81.191:80 check
+
+# Optional Backend for Let’s Encrypt
+backend letsencrypt-backend
+    server letsencrypt 127.0.0.1:8080
+
